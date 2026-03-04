@@ -336,8 +336,9 @@ body {
     </div>
 
     <script>
-    // ===== GITHUB RAW FILE URL =====
-const GITHUB_URL = "https://raw.githubusercontent.com/loinux/GPS-Tracker/main/gps.json";
+    <script>
+// ===== GITHUB RAW FILE URL =====
+const GITHUB_URL = "https://raw.githubusercontent.com/loinux/GPS-Tracker/main/gps-history.json";
 
 // Initialize map
 const map = L.map('map').setView([28.6139, 77.2090], 13);
@@ -357,8 +358,6 @@ const vehicleIcon = L.divIcon({
 let marker = null;
 let polyline = null;
 let pathCoordinates = [];
-let lastPosition = null;
-let lastTime = null;
 
 // ===== FETCH FROM GITHUB =====
 async function fetchGPS() {
@@ -367,7 +366,21 @@ async function fetchGPS() {
         const data = await response.json();
 
         document.getElementById('connection-status').textContent = 'Connected';
-        updateDashboard(data);
+
+        if (!Array.isArray(data) || data.length === 0) return;
+
+        pathCoordinates = [];
+
+        data.forEach(point => {
+            if (point.lat && point.lng) {
+                pathCoordinates.push([point.lat, point.lng]);
+            }
+        });
+
+        const last = data[data.length - 1];
+
+        updateDashboard(last);
+        drawRoute(pathCoordinates);
 
     } catch (error) {
         console.error("Fetch error:", error);
@@ -375,7 +388,7 @@ async function fetchGPS() {
     }
 }
 
-// Fetch every 15 seconds
+// Auto refresh every 15 seconds
 setInterval(fetchGPS, 15000);
 fetchGPS();
 
@@ -391,36 +404,28 @@ function updateDashboard(data) {
     document.getElementById('accuracy').textContent = data.accuracy ? data.accuracy.toFixed(1) + ' m' : '--';
 
     if (data.lat && data.lng) {
-
         const latlng = [data.lat, data.lng];
 
         if (marker) {
             marker.setLatLng(latlng);
         } else {
             marker = L.marker(latlng, { icon: vehicleIcon }).addTo(map);
-            marker.bindPopup('Vehicle');
         }
 
-        pathCoordinates.push(latlng);
+        map.setView(latlng, 16);
+    }
+}
 
-        if (polyline) {
-            polyline.setLatLngs(pathCoordinates);
-        } else {
-            polyline = L.polyline(pathCoordinates, {
-                color: '#4ade80',
-                weight: 3,
-                opacity: 0.7
-            }).addTo(map);
-        }
+function drawRoute(coords) {
 
-        map.setView(latlng, map.getZoom());
-
-        if (pathCoordinates.length > 100) {
-            pathCoordinates.shift();
-        }
-
-        lastPosition = { lat: data.lat, lng: data.lng };
-        lastTime = Date.now();
+    if (polyline) {
+        polyline.setLatLngs(coords);
+    } else {
+        polyline = L.polyline(coords, {
+            color: '#4ade80',
+            weight: 4,
+            opacity: 0.8
+        }).addTo(map);
     }
 }
 
@@ -439,6 +444,4 @@ toggleBtn.addEventListener("click", () => {
         toggleBtn.innerHTML = "☀️ Light Mode";
     }
 });
-    </script>
-</body>
-</html>
+</script>
