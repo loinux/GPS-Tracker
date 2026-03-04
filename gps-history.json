@@ -1,0 +1,9 @@
+StaticJsonDocument<256> point;
+point["lat"] = lat;
+point["lng"] = lng;
+point["sat"] = sat;
+point["speed"] = spd;
+point["time"] = millis();
+
+String newPoint;
+serializeJson(point, newPoint);
