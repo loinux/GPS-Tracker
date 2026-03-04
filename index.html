@@ -301,6 +301,11 @@ body {
                 <div class="stat-value" id="sat">--</div>
             </div>
 
+<div class="stat-card">
+    <div class="stat-icon">📏</div>
+    <div class="stat-label">Distance</div>
+    <div class="stat-value" id="distance">0 km</div>
+</div>
             <div class="stat-card">
                 <div class="stat-icon">⚡</div>
                 <div class="stat-label">Speed</div>
@@ -308,6 +313,7 @@ body {
                     <span id="speed">--</span>
                     <span class="stat-unit">km/h</span>
                 </div>
+                
             </div>
         </div>
 
@@ -332,11 +338,10 @@ body {
                 <span class="info-label">🎯 Accuracy:</span>
                 <span class="info-value" id="accuracy">--</span>
             </div>
-        </div>
     </div>
 
-    <script>
-    <script>
+ <script>
+
 // ===== GITHUB RAW FILE URL =====
 const GITHUB_URL = "https://raw.githubusercontent.com/loinux/GPS-Tracker/main/gps-history.json";
 
@@ -349,12 +354,13 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 const vehicleIcon = L.divIcon({
-    className: 'custom-vehicle-icon',
     html: '<div style="font-size: 30px;">🚗</div>',
     iconSize: [40, 40],
     iconAnchor: [20, 20]
 });
 
+let startMarker = null;
+let endMarker = null;
 let marker = null;
 let polyline = null;
 let pathCoordinates = [];
@@ -372,7 +378,11 @@ async function fetchGPS() {
         pathCoordinates = [];
 
         data.forEach(point => {
-            if (point.lat && point.lng) {
+          if (coords.length > 5 && !map._fitDone) {
+    map.fitBounds(bounds, { padding: [30, 30] });
+    map._fitDone = true;
+}
+{
                 pathCoordinates.push([point.lat, point.lng]);
             }
         });
@@ -388,7 +398,6 @@ async function fetchGPS() {
     }
 }
 
-// Auto refresh every 15 seconds
 setInterval(fetchGPS, 15000);
 fetchGPS();
 
@@ -411,12 +420,12 @@ function updateDashboard(data) {
         } else {
             marker = L.marker(latlng, { icon: vehicleIcon }).addTo(map);
         }
-
-        map.setView(latlng, 16);
     }
 }
 
 function drawRoute(coords) {
+
+    if (coords.length < 2) return;
 
     if (polyline) {
         polyline.setLatLngs(coords);
@@ -427,6 +436,57 @@ function drawRoute(coords) {
             opacity: 0.8
         }).addTo(map);
     }
+
+    // START marker
+    const startIcon = L.divIcon({
+        html: '<div style="font-size:28px;color:lime;">🟢</div>',
+        iconSize: [30,30],
+        iconAnchor: [15,15]
+    });
+
+    if (!startMarker) {
+        startMarker = L.marker(coords[0], { icon: startIcon }).addTo(map);
+    } else {
+        startMarker.setLatLng(coords[0]);
+    }
+
+    // END marker
+    const endIcon = L.divIcon({
+        html: '<div style="font-size:28px;color:red;">🔴</div>',
+        iconSize: [30,30],
+        iconAnchor: [15,15]
+    });
+
+    if (!endMarker) {
+        endMarker = L.marker(coords[coords.length - 1], { icon: endIcon }).addTo(map);
+    } else {
+        endMarker.setLatLng(coords[coords.length - 1]);
+    }
+
+    calculateDistance(coords);
+
+    const bounds = L.latLngBounds(coords);
+if (!map._fitDone && coords.length > 5) {
+    map.fitBounds(bounds, { padding: [30, 30] });
+    map._fitDone = true;
+}
+}
+
+function calculateDistance(coords) {
+
+    let totalDistance = 0;
+
+    for (let i = 1; i < coords.length; i++) {
+        const from = L.latLng(coords[i - 1]);
+        const to   = L.latLng(coords[i]);
+
+        totalDistance += from.distanceTo(to);
+    }
+
+    totalDistance = totalDistance / 1000;
+
+    document.getElementById("distance").textContent =
+        totalDistance.toFixed(2) + " km";
 }
 
 // ===== THEME TOGGLE =====
@@ -444,4 +504,8 @@ toggleBtn.addEventListener("click", () => {
         toggleBtn.innerHTML = "☀️ Light Mode";
     }
 });
+
 </script>
+</div>
+</body>
+</html>
