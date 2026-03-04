@@ -1,0 +1,6 @@
+  "lat": 0,
+  "lng": 0,
+  "sat": 0,
+  "speed": 0,
+  "altitude": 0,
+  "accuracy": 0
