@@ -340,12 +340,12 @@ body {
             </div>
     </div>
 
- <script>
+<script>
 
 // ===== GITHUB RAW FILE URL =====
-     const GITHUB_URL = "https://raw.githubusercontent.com/loinux/GPS-Tracker/main/gps.json";
+const GITHUB_URL = "https://raw.githubusercontent.com/loinux/GPS-Tracker/main/gps.json";
 
-// Initialize map
+// ===== MAP INIT =====
 const map = L.map('map').setView([28.6139, 77.2090], 13);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -359,10 +359,10 @@ const vehicleIcon = L.divIcon({
     iconAnchor: [20, 20]
 });
 
-let startMarker = null;
-let endMarker = null;
 let marker = null;
 let polyline = null;
+let startMarker = null;
+let endMarker = null;
 let pathCoordinates = [];
 
 // ===== FETCH FROM GITHUB =====
@@ -373,19 +373,21 @@ async function fetchGPS() {
 
         document.getElementById('connection-status').textContent = 'Connected';
 
-        if (!Array.isArray(data) || data.length === 0) return;
+        // If single object
+        if (!Array.isArray(data)) {
 
-        pathCoordinates = [];
+            updateDashboard(data);
 
-        data.forEach(point => {
-          if (coords.length > 5 && !map._fitDone) {
-    map.fitBounds(bounds, { padding: [30, 30] });
-    map._fitDone = true;
-}
-{
-                pathCoordinates.push([point.lat, point.lng]);
-            }
-        });
+            pathCoordinates.push([data.lat, data.lng]);
+
+            drawRoute(pathCoordinates);
+            return;
+        }
+
+        // If array
+        if (data.length === 0) return;
+
+        pathCoordinates = data.map(p => [p.lat, p.lng]);
 
         const last = data[data.length - 1];
 
@@ -401,28 +403,38 @@ async function fetchGPS() {
 setInterval(fetchGPS, 15000);
 fetchGPS();
 
+// ===== UPDATE DASHBOARD =====
 function updateDashboard(data) {
 
-    document.getElementById('lat').textContent = data.lat ? data.lat.toFixed(6) : '--';
-    document.getElementById('lng').textContent = data.lng ? data.lng.toFixed(6) : '--';
-    document.getElementById('sat').textContent = data.sat || '--';
-    document.getElementById('speed').textContent = data.speed ? data.speed.toFixed(1) : '--';
+    document.getElementById('lat').textContent =
+        data.lat ? data.lat.toFixed(6) : '--';
 
-    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-    document.getElementById('altitude').textContent = data.altitude ? data.altitude.toFixed(1) + ' m' : '-- m';
-    document.getElementById('accuracy').textContent = data.accuracy ? data.accuracy.toFixed(1) + ' m' : '--';
+    document.getElementById('lng').textContent =
+        data.lng ? data.lng.toFixed(6) : '--';
+
+    document.getElementById('sat').textContent =
+        data.sat || '--';
+
+    document.getElementById('speed').textContent =
+        data.speed ? data.speed.toFixed(1) : '--';
+
+    document.getElementById('last-update').textContent =
+        new Date().toLocaleTimeString();
 
     if (data.lat && data.lng) {
+
         const latlng = [data.lat, data.lng];
 
         if (marker) {
             marker.setLatLng(latlng);
         } else {
             marker = L.marker(latlng, { icon: vehicleIcon }).addTo(map);
+            map.setView(latlng, 16);
         }
     }
 }
 
+// ===== DRAW ROUTE =====
 function drawRoute(coords) {
 
     if (coords.length < 2) return;
@@ -438,40 +450,25 @@ function drawRoute(coords) {
     }
 
     // START marker
-    const startIcon = L.divIcon({
-        html: '<div style="font-size:28px;color:lime;">🟢</div>',
-        iconSize: [30,30],
-        iconAnchor: [15,15]
-    });
-
     if (!startMarker) {
-        startMarker = L.marker(coords[0], { icon: startIcon }).addTo(map);
+        startMarker = L.marker(coords[0]).addTo(map)
+            .bindPopup("Start Point");
     } else {
         startMarker.setLatLng(coords[0]);
     }
 
     // END marker
-    const endIcon = L.divIcon({
-        html: '<div style="font-size:28px;color:red;">🔴</div>',
-        iconSize: [30,30],
-        iconAnchor: [15,15]
-    });
-
     if (!endMarker) {
-        endMarker = L.marker(coords[coords.length - 1], { icon: endIcon }).addTo(map);
+        endMarker = L.marker(coords[coords.length - 1]).addTo(map)
+            .bindPopup("Current Location");
     } else {
         endMarker.setLatLng(coords[coords.length - 1]);
     }
 
     calculateDistance(coords);
-
-    const bounds = L.latLngBounds(coords);
-if (!map._fitDone && coords.length > 5) {
-    map.fitBounds(bounds, { padding: [30, 30] });
-    map._fitDone = true;
-}
 }
 
+// ===== DISTANCE CALCULATION =====
 function calculateDistance(coords) {
 
     let totalDistance = 0;
@@ -479,7 +476,6 @@ function calculateDistance(coords) {
     for (let i = 1; i < coords.length; i++) {
         const from = L.latLng(coords[i - 1]);
         const to   = L.latLng(coords[i]);
-
         totalDistance += from.distanceTo(to);
     }
 
@@ -494,6 +490,7 @@ const toggleBtn = document.getElementById("theme-toggle");
 document.body.classList.add("dark");
 
 toggleBtn.addEventListener("click", () => {
+
     if (document.body.classList.contains("dark")) {
         document.body.classList.remove("dark");
         document.body.classList.add("light");
@@ -506,6 +503,3 @@ toggleBtn.addEventListener("click", () => {
 });
 
 </script>
-</div>
-</body>
-</html>
