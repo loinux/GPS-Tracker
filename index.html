@@ -403,25 +403,30 @@ async function fetchGPS() {
 setInterval(fetchGPS, 15000);
 fetchGPS();
 
-// ===== UPDATE DASHBOARD =====
 function updateDashboard(data) {
 
     document.getElementById('lat').textContent =
-        data.lat ? data.lat.toFixed(6) : '--';
+        (data.lat !== undefined) ? Number(data.lat).toFixed(6) : '--';
 
     document.getElementById('lng').textContent =
-        data.lng ? data.lng.toFixed(6) : '--';
+        (data.lng !== undefined) ? Number(data.lng).toFixed(6) : '--';
 
     document.getElementById('sat').textContent =
-        data.sat || '--';
+        (data.sat !== undefined) ? data.sat : '--';
 
     document.getElementById('speed').textContent =
-        data.speed ? data.speed.toFixed(1) : '--';
+        (data.speed !== undefined) ? Number(data.speed).toFixed(1) : '--';
+
+    // SHOW DISTANCE FROM ESP32 JSON
+    if (data.dist_km !== undefined) {
+        document.getElementById("distance").textContent =
+            Number(data.dist_km).toFixed(2) + " km";
+    }
 
     document.getElementById('last-update').textContent =
         new Date().toLocaleTimeString();
 
-    if (data.lat && data.lng) {
+    if (data.lat !== undefined && data.lng !== undefined) {
 
         const latlng = [data.lat, data.lng];
 
@@ -434,8 +439,8 @@ function updateDashboard(data) {
     }
 }
 
-// ===== DRAW ROUTE =====
-function drawRoute(coords) {
+/// ===== DRAW ROUTE =====
+/*unction drawRoute(coords) {
 
     if (coords.length < 2) return;
 
@@ -448,7 +453,7 @@ function drawRoute(coords) {
             opacity: 0.8
         }).addTo(map);
     }
-
+*/
     // START marker
     if (!startMarker) {
         startMarker = L.marker(coords[0]).addTo(map)
