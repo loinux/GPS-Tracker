@@ -378,8 +378,15 @@ let pathCoordinates = [];
 // ================= FETCH GPS =================
 async function fetchGPS() {
     try {
-        const response = await fetch(GITHUB_URL + "?t=" + Date.now());
+       const response = await fetch(GITHUB_URL, {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+        "Cache-Control": "no-cache"
+    }
+});
         const data = await response.json();
+        console.log("LIVE DATA:", data);
 
         setOnlineStatus(true);
 
