@@ -349,14 +349,14 @@ body {
                 <span class="info-value" id="accuracy">--</span>
             </div>
     </div>
-
 <script>
 
-// ===== GITHUB RAW FILE URL =====
+// ================= CONFIG =================
 const GITHUB_URL = "https://loinux.github.io/GPS-Tracker/gps.json";
+const FETCH_INTERVAL = 10000; // 10 seconds
 
-// ===== MAP INIT =====
-const map = L.map('map').setView([28.6139, 77.2090], 13);
+// ================= MAP INIT =================
+const map = L.map('map').setView([20.17, 85.86], 15);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
@@ -364,7 +364,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 const vehicleIcon = L.divIcon({
-    html: '<div style="font-size:30px;">🚗</div>',
+    html: '<div style="font-size:28px;">🚗</div>',
     iconSize: [40, 40],
     iconAnchor: [20, 20]
 });
@@ -374,132 +374,105 @@ let polyline = null;
 let startMarker = null;
 let endMarker = null;
 let pathCoordinates = [];
+let lastLat = null;
+let lastLng = null;
 
 // ================= FETCH GPS =================
 async function fetchGPS() {
+
     try {
-       const response = await fetch(GITHUB_URL, {
-    method: "GET",
-    cache: "no-store",
-    headers: {
-        "Cache-Control": "no-cache"
-    }
-});
+
+        const response = await fetch(GITHUB_URL + "?t=" + Date.now(), {
+            method: "GET",
+            cache: "no-store"
+        });
+
+        if (!response.ok) throw new Error("Network error");
+
         const data = await response.json();
-        console.log("LIVE DATA:", data);
+
+        if (!data || data.lat == null || data.lng == null) return;
 
         setOnlineStatus(true);
 
-        if (!data || data.lat === undefined || data.lng === undefined) return;
-
         updateDashboard(data);
+        updateMap(data);
 
-        const point = [Number(data.lat), Number(data.lng)];
+    } catch (err) {
 
-        if (
-            pathCoordinates.length === 0 ||
-            pathCoordinates[pathCoordinates.length - 1][0] !== point[0] ||
-            pathCoordinates[pathCoordinates.length - 1][1] !== point[1]
-        ) {
-            pathCoordinates.push(point);
-            drawRoute(pathCoordinates);
-        }
-
-    } catch (error) {
-        console.error("Fetch error:", error);
+        console.error("Fetch failed:", err);
         setOnlineStatus(false);
     }
 }
 
-setInterval(fetchGPS, 15000);
+setInterval(fetchGPS, FETCH_INTERVAL);
 fetchGPS();
 
 // ================= UPDATE DASHBOARD =================
 function updateDashboard(data) {
 
     document.getElementById("lat").textContent =
-        data.lat ? Number(data.lat).toFixed(6) : "--";
+        Number(data.lat).toFixed(6);
 
     document.getElementById("lng").textContent =
-        data.lng ? Number(data.lng).toFixed(6) : "--";
+        Number(data.lng).toFixed(6);
 
     document.getElementById("sat").textContent =
         data.sat ?? "--";
 
     document.getElementById("speed").textContent =
-        data.speed ? Number(data.speed).toFixed(1) : "--";
+        Number(data.speed || 0).toFixed(1);
 
-    if (data.dist_km !== undefined) {
-        document.getElementById("distance").textContent =
-            Number(data.dist_km).toFixed(2) + " km";
-    }
+    document.getElementById("distance").textContent =
+        Number(data.dist_km || 0).toFixed(2) + " km";
 
     document.getElementById("last-update").textContent =
         new Date().toLocaleTimeString();
-
-    if (data.lat && data.lng) {
-
-        const latlng = [data.lat, data.lng];
-
-        if (marker) {
-            marker.setLatLng(latlng);
-        } else {
-            marker = L.marker(latlng, { icon: vehicleIcon }).addTo(map);
-            map.setView(latlng, 16);
-        }
-    }
 }
 
-// ================= DRAW ROUTE =================
-function drawRoute(coords) {
+// ================= UPDATE MAP =================
+function updateMap(data) {
 
-    if (coords.length < 2) return;
+    const lat = Number(data.lat);
+    const lng = Number(data.lng);
 
-    if (polyline) {
-        polyline.setLatLngs(coords);
+    // Prevent duplicate points
+    if (lat === lastLat && lng === lastLng) return;
+
+    lastLat = lat;
+    lastLng = lng;
+
+    const point = [lat, lng];
+    pathCoordinates.push(point);
+
+    if (!marker) {
+        marker = L.marker(point, { icon: vehicleIcon }).addTo(map);
+        map.setView(point, 16);
     } else {
-        polyline = L.polyline(coords, {
+        marker.setLatLng(point);
+    }
+
+    if (!polyline) {
+        polyline = L.polyline(pathCoordinates, {
             color: "#4ade80",
-            weight: 4,
-            opacity: 0.8
+            weight: 4
         }).addTo(map);
+    } else {
+        polyline.setLatLngs(pathCoordinates);
     }
 
     if (!startMarker) {
-        startMarker = L.marker(coords[0]).addTo(map)
-            .bindPopup("Start Point");
-    } else {
-        startMarker.setLatLng(coords[0]);
+        startMarker = L.marker(point).addTo(map).bindPopup("Start");
     }
 
-    if (!endMarker) {
-        endMarker = L.marker(coords[coords.length - 1]).addTo(map)
-            .bindPopup("Current Location");
+    if (endMarker) {
+        endMarker.setLatLng(point);
     } else {
-        endMarker.setLatLng(coords[coords.length - 1]);
+        endMarker = L.marker(point).addTo(map).bindPopup("Current");
     }
-
-    calculateDistance(coords);
 }
 
-// ================= DISTANCE =================
-function calculateDistance(coords) {
-
-    let total = 0;
-
-    for (let i = 1; i < coords.length; i++) {
-        const from = L.latLng(coords[i - 1]);
-        const to   = L.latLng(coords[i]);
-        total += from.distanceTo(to);
-    }
-
-    total = total / 1000;
-
-    document.getElementById("distance").textContent =
-        total.toFixed(2) + " km";
-}
-
-// ================= ONLINE / OFFLINE =================
+// ================= ONLINE STATUS =================
 function setOnlineStatus(isOnline) {
 
     const dot = document.getElementById("status-dot");
@@ -514,13 +487,12 @@ function setOnlineStatus(isOnline) {
     }
 }
 
-window.addEventListener("online", () => setOnlineStatus(true));
-window.addEventListener("offline", () => setOnlineStatus(false));
-
 // ================= RESET TRIP =================
 document.getElementById("reset-btn").addEventListener("click", () => {
 
     pathCoordinates = [];
+    lastLat = null;
+    lastLng = null;
 
     if (polyline) {
         map.removeLayer(polyline);
@@ -540,7 +512,7 @@ document.getElementById("reset-btn").addEventListener("click", () => {
     document.getElementById("distance").textContent = "0 km";
 });
 
-// ================= LIVE WEB CLOCK =================
+// ================= WEB CLOCK =================
 function updateWebTime() {
     document.getElementById("web-time").textContent =
         new Date().toLocaleTimeString();
@@ -551,11 +523,9 @@ updateWebTime();
 // ================= THEME SWITCH =================
 const toggleBtn = document.getElementById("theme-toggle");
 
-const savedTheme = localStorage.getItem("theme");
-if (savedTheme) {
-    document.body.classList.add(savedTheme);
-    toggleBtn.innerHTML =
-        savedTheme === "dark" ? "☀️ Light Mode" : "🌙 Dark Mode";
+if (localStorage.getItem("theme") === "light") {
+    document.body.classList.add("light");
+    toggleBtn.innerHTML = "🌙 Dark Mode";
 } else {
     document.body.classList.add("dark");
 }
