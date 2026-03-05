@@ -270,17 +270,22 @@ body {
         <span>GPS Tracker</span>
     </h1>
 
-    <div style="display:flex; justify-content:center; margin-top:10px;">
-        <button id="theme-toggle" 
-            style="padding:8px 15px; border:none; border-radius:20px; cursor:pointer;">
-            🌙 Dark Mode
-        </button>
-    </div>
 
-    <div class="status">
-        <div class="status-dot"></div>
-        <span id="connection-status">Connecting...</span>
-    </div>
+<div style="display:flex; justify-content:center; gap:10px; margin-top:10px;">
+    <button id="theme-toggle"
+        style="padding:8px 15px; border:none; border-radius:20px; cursor:pointer;">
+        🌙 Dark Mode
+    </button>
+
+    <button id="reset-btn"
+        style="padding:8px 15px; border:none; border-radius:20px; cursor:pointer;">
+        🔄 Reset Trip
+    </button>
+</div>
+<div class="status">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="connection-status">Connecting...</span>
+</div>
 </div>
         <div class="stats-grid">
             <div class="stat-card">
@@ -305,6 +310,11 @@ body {
     <div class="stat-icon">📏</div>
     <div class="stat-label">Distance</div>
     <div class="stat-value" id="distance">0 km</div>
+</div>
+  <div class="stat-card">
+    <div class="stat-icon">⏱️</div>
+    <div class="stat-label">Time</div>
+    <div class="stat-value" id="web-time">--</div>
 </div>
             <div class="stat-card">
                 <div class="stat-icon">⚡</div>
@@ -343,7 +353,7 @@ body {
 <script>
 
 // ===== GITHUB RAW FILE URL =====
-    const GITHUB_URL = "https://loinux.github.io/GPS-Tracker/gps.json";
+const GITHUB_URL = "https://loinux.github.io/GPS-Tracker/gps.json";
 
 // ===== MAP INIT =====
 const map = L.map('map').setView([28.6139, 77.2090], 13);
@@ -354,7 +364,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 const vehicleIcon = L.divIcon({
-    html: '<div style="font-size: 30px;">🚗</div>',
+    html: '<div style="font-size:30px;">🚗</div>',
     iconSize: [40, 40],
     iconAnchor: [20, 20]
 });
@@ -365,68 +375,62 @@ let startMarker = null;
 let endMarker = null;
 let pathCoordinates = [];
 
-// ===== FETCH FROM GITHUB =====
+// ================= FETCH GPS =================
 async function fetchGPS() {
     try {
-        const response = await fetch(GITHUB_URL + "?t=" + new Date().getTime());
+        const response = await fetch(GITHUB_URL + "?t=" + Date.now());
         const data = await response.json();
 
-        document.getElementById('connection-status').textContent = 'Connected';
+        setOnlineStatus(true);
 
-        // If single object
-        if (!Array.isArray(data)) {
+        if (!data || data.lat === undefined || data.lng === undefined) return;
 
-            updateDashboard(data);
+        updateDashboard(data);
 
-            pathCoordinates.push([data.lat, data.lng]);
+        const point = [Number(data.lat), Number(data.lng)];
 
+        if (
+            pathCoordinates.length === 0 ||
+            pathCoordinates[pathCoordinates.length - 1][0] !== point[0] ||
+            pathCoordinates[pathCoordinates.length - 1][1] !== point[1]
+        ) {
+            pathCoordinates.push(point);
             drawRoute(pathCoordinates);
-            return;
         }
-
-        // If array
-        if (data.length === 0) return;
-
-        pathCoordinates = data.map(p => [p.lat, p.lng]);
-
-        const last = data[data.length - 1];
-
-        updateDashboard(last);
-        drawRoute(pathCoordinates);
 
     } catch (error) {
         console.error("Fetch error:", error);
-        document.getElementById('connection-status').textContent = 'Connection Error';
+        setOnlineStatus(false);
     }
 }
 
 setInterval(fetchGPS, 15000);
 fetchGPS();
 
+// ================= UPDATE DASHBOARD =================
 function updateDashboard(data) {
 
-    document.getElementById('lat').textContent =
-        (data.lat !== undefined) ? Number(data.lat).toFixed(6) : '--';
+    document.getElementById("lat").textContent =
+        data.lat ? Number(data.lat).toFixed(6) : "--";
 
-    document.getElementById('lng').textContent =
-        (data.lng !== undefined) ? Number(data.lng).toFixed(6) : '--';
+    document.getElementById("lng").textContent =
+        data.lng ? Number(data.lng).toFixed(6) : "--";
 
-    document.getElementById('sat').textContent =
-        (data.sat !== undefined) ? data.sat : '--';
+    document.getElementById("sat").textContent =
+        data.sat ?? "--";
 
-    document.getElementById('speed').textContent =
-        (data.speed !== undefined) ? Number(data.speed).toFixed(1) : '--';
+    document.getElementById("speed").textContent =
+        data.speed ? Number(data.speed).toFixed(1) : "--";
 
-    // SHOW DISTANCE FROM ESP32 JSON
     if (data.dist_km !== undefined) {
         document.getElementById("distance").textContent =
             Number(data.dist_km).toFixed(2) + " km";
     }
 
-    document.getElementById('last-update').textContent =
+    document.getElementById("last-update").textContent =
         new Date().toLocaleTimeString();
 
-    if (data.lat !== undefined && data.lng !== undefined) {
+    if (data.lat && data.lng) {
 
         const latlng = [data.lat, data.lng];
 
@@ -439,8 +443,8 @@ function updateDashboard(data) {
     }
 }
 
-/// ===== DRAW ROUTE =====
-/*unction drawRoute(coords) {
+// ================= DRAW ROUTE =================
+function drawRoute(coords) {
 
     if (coords.length < 2) return;
 
@@ -448,13 +452,12 @@ function updateDashboard(data) {
         polyline.setLatLngs(coords);
     } else {
         polyline = L.polyline(coords, {
-            color: '#4ade80',
+            color: "#4ade80",
             weight: 4,
             opacity: 0.8
         }).addTo(map);
     }
-*/
-    // START marker
+
     if (!startMarker) {
         startMarker = L.marker(coords[0]).addTo(map)
             .bindPopup("Start Point");
@@ -462,7 +465,6 @@ function updateDashboard(data) {
         startMarker.setLatLng(coords[0]);
     }
 
-    // END marker
     if (!endMarker) {
         endMarker = L.marker(coords[coords.length - 1]).addTo(map)
             .bindPopup("Current Location");
@@ -473,37 +475,94 @@ function updateDashboard(data) {
     calculateDistance(coords);
 }
 
-// ===== DISTANCE CALCULATION =====
+// ================= DISTANCE =================
 function calculateDistance(coords) {
 
-    let totalDistance = 0;
+    let total = 0;
 
     for (let i = 1; i < coords.length; i++) {
         const from = L.latLng(coords[i - 1]);
         const to   = L.latLng(coords[i]);
-        totalDistance += from.distanceTo(to);
+        total += from.distanceTo(to);
     }
 
-    totalDistance = totalDistance / 1000;
+    total = total / 1000;
 
     document.getElementById("distance").textContent =
-        totalDistance.toFixed(2) + " km";
+        total.toFixed(2) + " km";
 }
 
-// ===== THEME TOGGLE =====
+// ================= ONLINE / OFFLINE =================
+function setOnlineStatus(isOnline) {
+
+    const dot = document.getElementById("status-dot");
+    const text = document.getElementById("connection-status");
+
+    if (isOnline) {
+        dot.style.background = "#4ade80";
+        text.textContent = "Online";
+    } else {
+        dot.style.background = "#ef4444";
+        text.textContent = "Offline";
+    }
+}
+
+window.addEventListener("online", () => setOnlineStatus(true));
+window.addEventListener("offline", () => setOnlineStatus(false));
+
+// ================= RESET TRIP =================
+document.getElementById("reset-btn").addEventListener("click", () => {
+
+    pathCoordinates = [];
+
+    if (polyline) {
+        map.removeLayer(polyline);
+        polyline = null;
+    }
+
+    if (startMarker) {
+        map.removeLayer(startMarker);
+        startMarker = null;
+    }
+
+    if (endMarker) {
+        map.removeLayer(endMarker);
+        endMarker = null;
+    }
+
+    document.getElementById("distance").textContent = "0 km";
+});
+
+// ================= LIVE WEB CLOCK =================
+function updateWebTime() {
+    document.getElementById("web-time").textContent =
+        new Date().toLocaleTimeString();
+}
+setInterval(updateWebTime, 1000);
+updateWebTime();
+
+// ================= THEME SWITCH =================
 const toggleBtn = document.getElementById("theme-toggle");
-document.body.classList.add("dark");
+
+const savedTheme = localStorage.getItem("theme");
+if (savedTheme) {
+    document.body.classList.add(savedTheme);
+    toggleBtn.innerHTML =
+        savedTheme === "dark" ? "☀️ Light Mode" : "🌙 Dark Mode";
+} else {
+    document.body.classList.add("dark");
+}
 
 toggleBtn.addEventListener("click", () => {
 
     if (document.body.classList.contains("dark")) {
-        document.body.classList.remove("dark");
-        document.body.classList.add("light");
+        document.body.classList.replace("dark", "light");
         toggleBtn.innerHTML = "🌙 Dark Mode";
+        localStorage.setItem("theme", "light");
     } else {
-        document.body.classList.remove("light");
-        document.body.classList.add("dark");
+        document.body.classList.replace("light", "dark");
         toggleBtn.innerHTML = "☀️ Light Mode";
+        localStorage.setItem("theme", "dark");
     }
 });
 
